@@ -1,0 +1,153 @@
+{
+  "name": "LinkedIn Outreach",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyWeek",
+              "hour": 9,
+              "minute": 0,
+              "weekday": "1,2,3,4,5"
+            }
+          ]
+        }
+      },
+      "id": "cron_daily_0900",
+      "name": "Cron",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python main.py --status"
+      },
+      "id": "exec_status",
+      "name": "Status",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $now.setZone('America/New_York').weekday }}",
+              "operation": "equal",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "id": "if_is_monday",
+      "name": "Is Monday",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python main.py --generate-week"
+      },
+      "id": "exec_generate_week",
+      "name": "Generate Week",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        900,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python main.py --batch"
+      },
+      "id": "exec_run_batch",
+      "name": "Run Batch",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cron": {
+      "main": [
+        [
+          {
+            "node": "Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status": {
+      "main": [
+        [
+          {
+            "node": "Is Monday",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Monday": {
+      "main": [
+        [
+          {
+            "node": "Generate Week",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Run Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Week": {
+      "main": [
+        [
+          {
+            "node": "Run Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d04765b1-16ea-4d0d-8836-a1a6dd479c54",
+  "meta": {
+    "instanceId": "ec101cbc7d68e927c325577f0f1e3a63484c10ef30246b3b042db703f365e758"
+  },
+  "id": "MzFnBoXmPIKc-5Py72VWm",
+  "tags": []
+}

@@ -19,12 +19,13 @@ from src.timing import generate_daily_timestamps
 def make_synthetic_state(n_profiles: int = 100) -> list:
     """Create initial state for all profiles."""
     today = date.today()
+    initial_engaged_date = today - timedelta(days=7)
     state = []
     for i in range(n_profiles):
         state.append({
             "linkedin_url": f"https://linkedin.com/in/user{i}",
             "name": f"User {i}",
-            "last_engaged_date": None,
+            "last_engaged_date": initial_engaged_date.isoformat(),
             "status": "active",
             "consecutive_skips": 0,
             "engagement_count": 0,
@@ -55,9 +56,9 @@ def simulate_week(
                     d = led
                 profile_last_engaged[pid] = d
             except (ValueError, TypeError):
-                profile_last_engaged[pid] = today - timedelta(days=999)
+                profile_last_engaged[pid] = today - timedelta(days=7)
         else:
-            profile_last_engaged[pid] = today - timedelta(days=999)
+            profile_last_engaged[pid] = today - timedelta(days=7)
 
     budgets = [12, 11, 14, 10, 13, 10, 10]
     total_planned = sum(budgets)
@@ -116,16 +117,35 @@ def run_monte_carlo(
             week_start = today + timedelta(weeks=w)
             for p in state:
                 led = profile_last.get(p["linkedin_url"])
-                p["last_engaged_date"] = led.isoformat() if led else None
+                if led:
+                    p["last_engaged_date"] = led.isoformat()
+                else:
+                    p["last_engaged_date"] = (week_start - timedelta(days=7)).isoformat()
+            
+            week_end = week_start + timedelta(days=6)
+            for pid in profile_max_gap.keys():
+                led = profile_last.get(pid)
+                if led:
+                    current_gap = (week_start - led).days
+                    if current_gap > 0:
+                        profile_max_gap[pid] = max(profile_max_gap.get(pid, 0), current_gap)
+            
             profile_last = simulate_week(
                 state,
                 failure_rate=failure_rate,
                 already_reacted_rate=already_reacted_rate,
                 no_posts_rate=no_posts_rate,
             )
-            for pid, last_date in profile_last.items():
-                gap = (week_start + timedelta(days=6) - last_date).days
-                profile_max_gap[pid] = max(profile_max_gap.get(pid, 0), gap)
+            
+            for pid in profile_max_gap.keys():
+                led = profile_last.get(pid)
+                if led:
+                    final_gap = (week_end - led).days
+                    if final_gap > 0:
+                        profile_max_gap[pid] = max(profile_max_gap.get(pid, 0), final_gap)
+                else:
+                    final_gap = (week_end - (week_start - timedelta(days=7))).days
+                    profile_max_gap[pid] = max(profile_max_gap.get(pid, 0), final_gap)
 
         for pid, gap in profile_max_gap.items():
             bucket = min(gap, 20)
