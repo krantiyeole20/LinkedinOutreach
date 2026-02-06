@@ -62,7 +62,8 @@ Monday (or first run of week):
 │  3. Sample daily budgets from TruncatedNormal            │
 │     [e.g., Mon:17, Tue:11, Wed:14, Thu:8, Fri:16,       │
 │      Sat:6, Sun:8] = 80 total                            │
-│  4. For each day:                                        │
+│     ** ALL 7 DAYS (Mon-Sun) receive budget **            │
+│  4. For each day (Mon-Sun):                              │
 │     a. Force-include any profile with days_since > 12    │
 │     b. Fill remaining via weighted random sample          │
 │     c. Assign Poisson-distributed timestamps             │
@@ -70,14 +71,16 @@ Monday (or first run of week):
 └──────────────────────────────────────────────────────────┘
                           │
                           ▼
-Daily (n8n trigger or --batch):
+Daily (n8n trigger at 9am EST, ALL 7 DAYS):
 ┌──────────────────────────────────────────────────────────┐
 │               Scheduler.get_todays_queue()               │
 │                                                          │
 │  1. Load weekly plan from schedule_state.json            │
-│  2. Extract today's slot                                 │
+│  2. Extract today's slot (Mon/Tue/Wed/Thu/Fri/Sat/Sun)  │
 │  3. Return list of (profile, scheduled_time) tuples      │
 │  4. Engine processes them in scheduled_time order         │
+│                                                          │
+│  ** Runs every day including weekends **                 │
 └──────────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -184,6 +187,8 @@ def select_for_day(
 
 **Purpose:** Given N engagements for a day, produce N timestamps that look like a human's LinkedIn activity pattern.
 
+**Design note:** This timing logic is **day-agnostic** - it works identically on weekdays and weekends. The operating window (9am-6pm EST) is the same for all 7 days, though weekend timing could be adjusted in future iterations if needed (e.g., weekend users may be more active 10am-4pm).
+
 ```python
 def generate_daily_timestamps(
     n: int,
@@ -192,9 +197,11 @@ def generate_daily_timestamps(
 ) -> List[time]:
     """
     Non-homogeneous Poisson process with time-varying rate:
-    
+
     rate(t) peaks at ~11:00 AM and ~2:00 PM (lunch-break browsing),
     with lower rates at start/end of operating window.
+
+    ** Works for all 7 days (Mon-Sun) **
     
     Rate function (piecewise):
       09:00-10:00  base_rate * 0.6   (morning warmup)
@@ -666,6 +673,9 @@ A: Token buckets add conceptual overhead (refill rates, token counts, last_refil
 
 **Q: Why pre-plan the whole week instead of deciding daily?**
 A: A weekly plan allows us to guarantee budget distribution across days (no accidentally spending 60 by Wednesday), guarantee coverage (every profile assigned at least once per 2-week window), and inspect the plan before execution. Daily planning is reactive; weekly planning is proactive.
+
+**Q: Why run on weekends (7 days) instead of just weekdays (5 days)?**
+A: Spreading 80 engagements across 7 days reduces daily burst size (~11/day vs 16/day), making the pattern more human-like. Real LinkedIn users do engage on weekends, especially on Sundays. The stochastic scheduler naturally creates lighter weekend days (often 6-8 engagements) while preserving full weekly coverage. This also reduces the risk of triggering rate limits by avoiding concentrated weekday activity.
 
 **Q: Why Poisson timing instead of uniform random delays?**
 A: Uniform delays between engagements produce a suspiciously regular cadence. Poisson processes naturally model "events occurring at random times" and are the standard model for human arrival patterns. The time-varying rate function adds the observation that humans are more active at certain hours.

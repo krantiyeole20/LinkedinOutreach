@@ -49,7 +49,9 @@ class Scheduler:
         self.daily_count = 0
         self.weekly_count = 0
         self.hourly_count = 0
-        self.hourly_reset_time = datetime.now()
+        # Make timezone-aware from the start
+        tz = pytz.timezone(getattr(settings, "TIMEZONE", "America/New_York"))
+        self.hourly_reset_time = datetime.now(tz)
         self.daily_reset_date = date.today()
         self.weekly_reset_date = date.today()
 
@@ -341,7 +343,12 @@ class Scheduler:
         try:
             hr = counters.get("hourly_reset_time")
             if hr:
-                self.hourly_reset_time = datetime.fromisoformat(hr)
+                dt = datetime.fromisoformat(hr)
+                # Ensure timezone-aware
+                if dt.tzinfo is None:
+                    tz = pytz.timezone(getattr(settings, "TIMEZONE", "America/New_York"))
+                    dt = tz.localize(dt)
+                self.hourly_reset_time = dt
         except (ValueError, TypeError):
             pass
         try:

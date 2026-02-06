@@ -147,21 +147,70 @@ async def run_batch(dry_run: bool = False, limit: Optional[int] = None):
         if limit:
             queue = queue[:limit]
 
-        print(f"\nProcessing {len(queue)} profiles for today...")
-        for i, engagement in enumerate(queue):
+        total = len(queue)
+        print(f"\n{'='*60}")
+        print(f"BATCH STARTED: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"{'='*60}")
+        print(f"Total profiles: {total}")
+        print(f"Mode: {'DRY RUN' if dry_run else 'LIVE'}")
+        print(f"{'='*60}\n")
+
+        done = 0
+        failed = 0
+        skipped = 0
+
+        for i, engagement in enumerate(queue, 1):
+            print(f"\n[{i}/{total}] Processing: {engagement.name[:40]}")
+            print(f"  URL: {engagement.linkedin_url}")
+            print(f"  Scheduled: {engagement.scheduled_time.strftime('%H:%M')}")
+
             try:
-                await engage_profile(
+                result = await engage_profile(
                     engagement.linkedin_url,
                     engagement.name,
                     dry_run=dry_run,
                 )
-                if not dry_run and i < len(queue) - 1:
+
+                if result.success:
+                    done += 1
+                    print(f"  ✓ SUCCESS - {result.action_type}")
+                elif result.error_message and "already reacted" in result.error_message.lower():
+                    skipped += 1
+                    print(f"  ⊘ SKIPPED - Already reacted")
+                elif result.error_message and "no posts" in result.error_message.lower():
+                    skipped += 1
+                    print(f"  ⊘ SKIPPED - No posts found")
+                else:
+                    failed += 1
+                    print(f"  ✗ FAILED - {result.error_message or 'Unknown error'}")
+
+                # Progress summary
+                print(f"\n  Progress: {done} done | {failed} failed | {skipped} skipped | {total - i} remaining")
+
+                if not dry_run and i < len(queue):
                     delay = settings.get_random_delay()
+                    next_time = datetime.now()
+                    next_time = next_time.replace(second=next_time.second + delay)
+                    print(f"  Waiting {delay}s (next at ~{next_time.strftime('%H:%M:%S')})")
                     await asyncio.sleep(delay)
+
             except Exception as e:
+                failed += 1
                 logger.error("batch_profile_failed", url=engagement.linkedin_url, error=str(e))
+                print(f"  ✗ EXCEPTION - {str(e)[:60]}")
                 if hasattr(scheduler, "mark_outcome"):
                     scheduler.mark_outcome(engagement.linkedin_url, "failed")
+
+        # Final summary
+        print(f"\n{'='*60}")
+        print(f"BATCH COMPLETED: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"{'='*60}")
+        print(f"Total:   {total}")
+        print(f"Done:    {done} ({(done/total*100):.1f}%)")
+        print(f"Failed:  {failed}")
+        print(f"Skipped: {skipped}")
+        print(f"{'='*60}\n")
+
     except Exception as e:
         logger.error("batch_failed", error=str(e))
         raise

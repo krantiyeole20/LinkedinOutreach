@@ -11,9 +11,13 @@ from playwright.async_api import async_playwright, Page, BrowserContext
 import structlog
 
 from config.settings import settings
-from src.post_fetcher import PostFetcher, PostData
 from src.reaction_analyzer import get_analyzer, ReactionType
 from src.scheduler import Scheduler
+from src.session_validator import SessionValidator
+
+# Import from linkedin_scraper submodule
+from linkedin_scraper.scrapers import PersonPostsScraper
+from linkedin_scraper.core.exceptions import AuthenticationError, RateLimitError, ScrapingError
 
 logger = structlog.get_logger()
 
@@ -41,30 +45,25 @@ class EngagementResult:
         }
 
 class LinkedInEngagement:
-    REACTION_BUTTON_SELECTOR = "button.reactions-react-button"
-    REACTION_PICKER_SELECTOR = "div.reactions-menu"
-    
-    REACTION_SELECTORS = {
-        ReactionType.LIKE: "button[aria-label*='Like']",
-        ReactionType.CELEBRATE: "button[aria-label*='Celebrate']",
-        ReactionType.SUPPORT: "button[aria-label*='Support']",
-        ReactionType.LOVE: "button[aria-label*='Love']",
-        ReactionType.INSIGHTFUL: "button[aria-label*='Insightful']",
-        ReactionType.FUNNY: "button[aria-label*='Funny']",
-    }
+    """
+    LinkedIn engagement wrapper using PersonPostsScraper from linkedin_scraper submodule.
+    Keeps existing interfaces for scheduler, analyzer, and monitoring systems.
+    """
 
     def __init__(self):
         self.rate_limiter = Scheduler()
         self.analyzer = get_analyzer()
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
+        self.scraper: Optional[PersonPostsScraper] = None
 
     async def initialize(self):
+        """Initialize browser and validate session"""
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(
             headless=settings.HEADLESS
         )
-        
+
         self.context = await self.browser.new_context(
             viewport={
                 "width": settings.VIEWPORT_WIDTH,
@@ -72,26 +71,41 @@ class LinkedInEngagement:
             },
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         )
-        
+
         await self._load_cookies()
-        
+
         self.page = await self.context.new_page()
         self.page.set_default_timeout(settings.PAGE_TIMEOUT)
 
+        # Initialize PersonPostsScraper
+        self.scraper = PersonPostsScraper(self.page)
+
+        # Validate session immediately after initialization
+        validator = SessionValidator(self.page)
+        is_valid, message = await validator.is_logged_in()
+        if not is_valid:
+            raise RuntimeError(f"LinkedIn session invalid: {message}")
+
     async def _load_cookies(self):
+        """Load LinkedIn cookies from file"""
         if not settings.COOKIES_FILE.exists():
             raise FileNotFoundError(f"Cookies file not found: {settings.COOKIES_FILE}")
-        
+
         with open(settings.COOKIES_FILE, "r") as f:
             cookies = json.load(f)
-        
+
         await self.context.add_cookies(cookies)
         logger.info("cookies_loaded", count=len(cookies))
 
     async def engage(self, profile_url: str, dry_run: bool = False) -> EngagementResult:
+        """
+        Main engagement flow using PersonPostsScraper.
+        Keeps existing scheduler, analyzer, and monitoring integration.
+        """
         log = logger.bind(profile_url=profile_url)
-        
+
         try:
+            # Check rate limits (existing system)
             can_proceed, limit_info = self.rate_limiter.check_limits()
             if not can_proceed:
                 log.warning("rate_limit_exceeded", info=limit_info)
@@ -105,11 +119,21 @@ class LinkedInEngagement:
                     error_message=f"Limit reached: {limit_info}",
                     timestamp=datetime.now()
                 )
-            
-            post_fetcher = PostFetcher(self.page)
-            post_data = await post_fetcher.fetch_recent_post(profile_url)
-            
-            if not post_data:
+
+            # Scrape most recent post using PersonPostsScraper
+            try:
+                post = await self.scraper.scrape_most_recent(profile_url)
+            except AuthenticationError as e:
+                log.error("authentication_error", error=str(e))
+                return self._error_result(profile_url, "auth_error", "Session expired - please refresh cookies")
+            except RateLimitError as e:
+                log.error("scraper_rate_limit", error=str(e))
+                return self._error_result(profile_url, "rate_limit", f"LinkedIn rate limit: {str(e)}")
+            except ScrapingError as e:
+                log.error("scraping_error", error=str(e))
+                return self._error_result(profile_url, "scraping_failed", str(e))
+
+            if not post:
                 log.info("no_recent_post")
                 if hasattr(self.rate_limiter, "mark_outcome"):
                     self.rate_limiter.mark_outcome(profile_url, "no_posts")
@@ -123,112 +147,78 @@ class LinkedInEngagement:
                     error_message="No recent posts found",
                     timestamp=datetime.now()
                 )
-            
-            posts = await self.page.query_selector_all("div.feed-shared-update-v2")
-            if not posts:
-                if hasattr(self.rate_limiter, "mark_outcome"):
-                    self.rate_limiter.mark_outcome(profile_url, "failed")
-                return self._error_result(profile_url, "post_element_not_found", "Could not find post element")
-            
-            first_post = posts[0]
-            reaction_state = await post_fetcher.get_reaction_button_state(first_post)
-            
-            if reaction_state.get("already_reacted"):
-                log.info("already_reacted", current=reaction_state.get("current_reaction"))
+
+            # Check if already liked
+            if post.already_liked:
+                log.info("already_reacted")
                 if hasattr(self.rate_limiter, "mark_outcome"):
                     self.rate_limiter.mark_outcome(profile_url, "already_reacted")
                 return EngagementResult(
                     success=False,
                     profile_url=profile_url,
                     action_type=None,
-                    post_id=post_data.post_id,
-                    post_content=post_data.content,
+                    post_id=post.urn,
+                    post_content=post.text,
                     error_code="already_reacted",
-                    error_message=f"Already reacted: {reaction_state.get('current_reaction')}",
+                    error_message="Post already liked",
                     timestamp=datetime.now()
                 )
-            
-            reaction_type, confidence = self.analyzer.analyze(post_data.content)
+
+            # Use reaction analyzer (existing system)
+            reaction_type, confidence = self.analyzer.analyze(post.text)
             log.info("reaction_selected", reaction=reaction_type.value, confidence=confidence)
-            
+
+            # Dry run mode
             if dry_run:
                 log.info("dry_run_skip_click")
                 return EngagementResult(
                     success=True,
                     profile_url=profile_url,
                     action_type=f"DRY_RUN_{reaction_type.value}",
-                    post_id=post_data.post_id,
-                    post_content=post_data.content,
+                    post_id=post.urn,
+                    post_content=post.text,
                     error_code=None,
                     error_message=None,
                     timestamp=datetime.now()
                 )
-            
-            await self._perform_reaction(first_post, reaction_type)
-            
+
+            # Perform like using PersonPostsScraper
+            # Note: PersonPostsScraper.like_post() only does "Like", not other reactions
+            # For now, we'll just use Like (can be extended later)
+            success = await self.scraper.like_post(post.urn)
+
+            if not success:
+                log.error("like_failed", post_urn=post.urn)
+                if hasattr(self.rate_limiter, "mark_outcome"):
+                    self.rate_limiter.mark_outcome(profile_url, "failed")
+                return self._error_result(profile_url, "like_failed", "Could not like post")
+
+            # Update rate limiter (existing system)
             self.rate_limiter.consume()
             if hasattr(self.rate_limiter, "mark_outcome"):
                 self.rate_limiter.mark_outcome(profile_url, "done")
 
-            log.info("engagement_success", reaction=reaction_type.value, post_id=post_data.post_id)
-            
+            log.info("engagement_success", reaction="Like", post_id=post.urn)
+
             return EngagementResult(
                 success=True,
                 profile_url=profile_url,
-                action_type=reaction_type.value,
-                post_id=post_data.post_id,
-                post_content=post_data.content,
+                action_type="Like",  # PersonPostsScraper only does Like for now
+                post_id=post.urn,
+                post_content=post.text,
                 error_code=None,
                 error_message=None,
                 timestamp=datetime.now()
             )
-            
+
         except Exception as e:
             log.error("engagement_error", error=str(e))
             if hasattr(self.rate_limiter, "mark_outcome"):
                 self.rate_limiter.mark_outcome(profile_url, "failed")
             return self._error_result(profile_url, "unexpected_error", str(e))
 
-    async def _perform_reaction(self, post_element, reaction_type: ReactionType):
-        reaction_btn = await post_element.query_selector(self.REACTION_BUTTON_SELECTOR)
-        if not reaction_btn:
-            raise Exception("Reaction button not found")
-        
-        await self._human_like_move_to(reaction_btn)
-        
-        await reaction_btn.hover()
-        await self.page.wait_for_timeout(random.randint(800, 1500))
-        
-        picker = await self.page.wait_for_selector(
-            self.REACTION_PICKER_SELECTOR,
-            timeout=5000
-        )
-        
-        if reaction_type == ReactionType.LIKE:
-            await reaction_btn.click()
-        else:
-            reaction_selector = self.REACTION_SELECTORS.get(reaction_type)
-            specific_btn = await picker.query_selector(reaction_selector)
-            
-            if specific_btn:
-                await self._human_like_move_to(specific_btn)
-                await specific_btn.click()
-            else:
-                logger.warning("specific_reaction_not_found_using_like", requested=reaction_type.value)
-                await reaction_btn.click()
-        
-        await self.page.wait_for_timeout(random.randint(500, 1000))
-
-    async def _human_like_move_to(self, element):
-        box = await element.bounding_box()
-        if box:
-            target_x = box["x"] + box["width"] / 2 + random.randint(-5, 5)
-            target_y = box["y"] + box["height"] / 2 + random.randint(-3, 3)
-            
-            await self.page.mouse.move(target_x, target_y, steps=random.randint(10, 25))
-            await self.page.wait_for_timeout(random.randint(100, 300))
-
     def _error_result(self, profile_url: str, code: str, message: str) -> EngagementResult:
+        """Helper to create error result"""
         return EngagementResult(
             success=False,
             profile_url=profile_url,
@@ -241,6 +231,7 @@ class LinkedInEngagement:
         )
 
     async def close(self):
+        """Cleanup resources"""
         if self.page:
             await self.page.close()
         if self.context:
