@@ -26,7 +26,7 @@ from linkedin_scraper.models.post import Post
 
 from config.settings import settings
 from src.smart_reactions import ReactionAnalyzer, ReactionType
-from src.rate_limiter import RateLimiter
+from src.scheduler import Scheduler
 from src.monitoring import HealthMonitor, HealthEvent
 from src.sheets_client import get_sheets_client
 from src.noise_actions import perform_noise_action
@@ -110,7 +110,7 @@ class EngagementEngine:
         self.page: Optional[Page] = None
         
         self.reaction_analyzer = ReactionAnalyzer()
-        self.rate_limiter = RateLimiter()
+        self.rate_limiter = Scheduler()
         self.health_monitor = HealthMonitor()
         self.sheets_client = get_sheets_client()
         
@@ -200,6 +200,8 @@ class EngagementEngine:
             
             if not post:
                 log.info("no_posts_found")
+                if hasattr(self.rate_limiter, "mark_outcome"):
+                    self.rate_limiter.mark_outcome(profile_url, "no_posts")
                 self._update_state_no_posts(profile_url)
                 return self._result(
                     EngagementStatus.NO_POSTS,
@@ -209,6 +211,8 @@ class EngagementEngine:
             
             if post.already_liked:
                 log.info("already_reacted", post_id=post.urn)
+                if hasattr(self.rate_limiter, "mark_outcome"):
+                    self.rate_limiter.mark_outcome(profile_url, "already_reacted")
                 return self._result(
                     EngagementStatus.ALREADY_REACTED,
                     profile_url, profile_name,
@@ -237,6 +241,8 @@ class EngagementEngine:
             
             if success:
                 self.rate_limiter.consume()
+                if hasattr(self.rate_limiter, "mark_outcome"):
+                    self.rate_limiter.mark_outcome(profile_url, "done")
                 self.health_monitor.record(HealthEvent.SUCCESS)
                 self._update_state_success(profile_url, post)
                 
@@ -253,6 +259,8 @@ class EngagementEngine:
                     confidence=confidence
                 )
             else:
+                if hasattr(self.rate_limiter, "mark_outcome"):
+                    self.rate_limiter.mark_outcome(profile_url, "failed")
                 self.health_monitor.record(HealthEvent.FAILURE)
                 return self._result(
                     EngagementStatus.FAILED,
@@ -264,6 +272,8 @@ class EngagementEngine:
                 
         except Exception as e:
             log.error("engagement_error", error=str(e), exc_info=True)
+            if hasattr(self.rate_limiter, "mark_outcome"):
+                self.rate_limiter.mark_outcome(profile_url, "failed")
             self.health_monitor.record(HealthEvent.FAILURE)
             return self._result(
                 EngagementStatus.FAILED,

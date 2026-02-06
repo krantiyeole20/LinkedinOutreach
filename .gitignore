@@ -8,6 +8,7 @@ config/credentials.json
 linkedin_cookies.json
 linkedin_session.json
 rate_limit_state.json
+schedule_state.json
 
 # Logs
 logs/*.log
@@ -42,3 +43,4 @@ LinkedIn_*.csv
 .coverage
 htmlcov/
 .tox/
+credentials.json

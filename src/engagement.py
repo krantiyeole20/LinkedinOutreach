@@ -13,7 +13,7 @@ import structlog
 from config.settings import settings
 from src.post_fetcher import PostFetcher, PostData
 from src.reaction_analyzer import get_analyzer, ReactionType
-from src.rate_limiter import RateLimiter
+from src.scheduler import Scheduler
 
 logger = structlog.get_logger()
 
@@ -54,7 +54,7 @@ class LinkedInEngagement:
     }
 
     def __init__(self):
-        self.rate_limiter = RateLimiter()
+        self.rate_limiter = Scheduler()
         self.analyzer = get_analyzer()
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
@@ -111,6 +111,8 @@ class LinkedInEngagement:
             
             if not post_data:
                 log.info("no_recent_post")
+                if hasattr(self.rate_limiter, "mark_outcome"):
+                    self.rate_limiter.mark_outcome(profile_url, "no_posts")
                 return EngagementResult(
                     success=False,
                     profile_url=profile_url,
@@ -124,6 +126,8 @@ class LinkedInEngagement:
             
             posts = await self.page.query_selector_all("div.feed-shared-update-v2")
             if not posts:
+                if hasattr(self.rate_limiter, "mark_outcome"):
+                    self.rate_limiter.mark_outcome(profile_url, "failed")
                 return self._error_result(profile_url, "post_element_not_found", "Could not find post element")
             
             first_post = posts[0]
@@ -131,6 +135,8 @@ class LinkedInEngagement:
             
             if reaction_state.get("already_reacted"):
                 log.info("already_reacted", current=reaction_state.get("current_reaction"))
+                if hasattr(self.rate_limiter, "mark_outcome"):
+                    self.rate_limiter.mark_outcome(profile_url, "already_reacted")
                 return EngagementResult(
                     success=False,
                     profile_url=profile_url,
@@ -161,7 +167,9 @@ class LinkedInEngagement:
             await self._perform_reaction(first_post, reaction_type)
             
             self.rate_limiter.consume()
-            
+            if hasattr(self.rate_limiter, "mark_outcome"):
+                self.rate_limiter.mark_outcome(profile_url, "done")
+
             log.info("engagement_success", reaction=reaction_type.value, post_id=post_data.post_id)
             
             return EngagementResult(
@@ -177,6 +185,8 @@ class LinkedInEngagement:
             
         except Exception as e:
             log.error("engagement_error", error=str(e))
+            if hasattr(self.rate_limiter, "mark_outcome"):
+                self.rate_limiter.mark_outcome(profile_url, "failed")
             return self._error_result(profile_url, "unexpected_error", str(e))
 
     async def _perform_reaction(self, post_element, reaction_type: ReactionType):

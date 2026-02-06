@@ -160,25 +160,21 @@ def get_sheets_client() -> SheetsClient:
 
 
 def generate_daily_queue():
-    from src.priority import rank_profiles, select_daily_queue
-    
+    from src.scheduler import Scheduler
+
     client = get_sheets_client()
-    
     client.initialize_state_tracker()
-    
-    state_data = client.get_state_tracker_data()
-    
-    ranked = rank_profiles(state_data)
-    
-    queue = select_daily_queue(ranked, limit=20)
-    
-    print("\n" + "="*50)
+    scheduler = Scheduler()
+    queue = scheduler.get_todays_queue()
+    if not queue:
+        return []
+
+    print("\n" + "=" * 50)
     print("TODAY'S ENGAGEMENT QUEUE")
-    print("="*50)
-    for i, profile in enumerate(queue, 1):
-        print(f"{i:2}. {profile.name[:30]:30} | Score: {profile.priority_score:.1f}")
-    print("="*50 + "\n")
-    
+    print("=" * 50)
+    for i, engagement in enumerate(queue, 1):
+        print(f"{i:2}. {engagement.name[:30]:30} | Score: {engagement.priority_score:.1f} @ {engagement.scheduled_time.strftime('%H:%M')}")
+    print("=" * 50 + "\n")
     return queue
 
 
