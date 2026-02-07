@@ -28,36 +28,31 @@
 | Requirement | How to verify | How to fix |
 |---|---|---|
 | Node.js 18+ | `node --version` | [nodejs.org](https://nodejs.org) |
-| Python 3.10+ with venv | `python3 --version` | brew install python3 (macOS) |
+| Python 3.10+ | `/opt/anaconda3/bin/python3 --version` | Install Anaconda/Miniconda |
 | This repo cloned | `ls ~/Documents/Linkedin\ Automation\ Project/main.py` | Clone the repo |
-| Python venv created & deps installed | `source .venv/bin/activate && python -c "import structlog"` | See below |
 | Google Sheets credentials | `ls config/credentials.json` | Create service account in GCP console |
 | LinkedIn cookies/session file | `ls linkedin_cookies.json` OR `ls linkedin_session.json` | Run `python -m src.engine --setup-session` |
 | Playwright chromium installed | `python -c "from playwright.sync_api import sync_playwright"` | `playwright install chromium` |
 | 3 Google Sheets created & shared with service account | Check Sheets UI | See README.md for sheet names |
 
-### Python environment setup (if not done)
+### Python environment setup
+
+Since you are using Anaconda, you don't need a venv. Just ensure dependencies are installed:
 
 ```bash
 cd "/Users/krantiy/Documents/Linkedin Automation Project"
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-playwright install chromium
-
-# If using linkedin_scraper submodule
-cd linkedin_scraper && pip install -e . && cd ..
+/opt/anaconda3/bin/pip install -r requirements.txt
+/opt/anaconda3/bin/playwright install chromium
 ```
 
 ### Verify Python commands work
 
 ```bash
 cd "/Users/krantiy/Documents/Linkedin Automation Project"
-source .venv/bin/activate
-python main.py --status
-python main.py --generate-week
-python main.py --show-plan
-python main.py --batch --dry-run
+/opt/anaconda3/bin/python3 main.py --status
+/opt/anaconda3/bin/python3 main.py --generate-week
+/opt/anaconda3/bin/python3 main.py --show-plan
+/opt/anaconda3/bin/python3 main.py --batch --dry-run
 ```
 
 If all four commands run without crashing, you're good to proceed.
@@ -597,8 +592,8 @@ If re-importing doesn't work, see [n8n/COMMANDS_REFERENCE.md](../n8n/COMMANDS_RE
 
 ### Execute Command nodes show "command not found: python" 
 
-**Cause:** n8n can't find Python because it's inside a venv.
-**Fix:** Every command in the workflow starts with `source ".venv/bin/activate"` which should handle this. If it still fails, try using the full path: `/Users/krantiy/Documents/Linkedin Automation Project/.venv/bin/python` instead of `python`.
+**Cause:** n8n can't find Python or you are pointing to the wrong path.
+**Fix:** Every command in the workflow now uses the full path `/opt/anaconda3/bin/python3`. If your python is elsewhere, update the path in all nodes.
 
 ### Workflow runs but Health Check fails immediately
 

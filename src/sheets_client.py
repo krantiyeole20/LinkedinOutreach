@@ -52,8 +52,12 @@ class SheetsClient:
         ]
     
     def get_state_tracker_data(self) -> List[dict]:
-        records = self.state_sheet.get_all_records()
-        return records
+        try:
+            records = self.state_sheet.get_all_records()
+            return records
+        except IndexError:
+            # Sheet is empty
+            return []
     
     def initialize_state_tracker(self):
         """First run: populate state tracker from input sheet"""
@@ -74,6 +78,23 @@ class SheetsClient:
                 ])
         
         if new_rows:
+            # Check if we need to add headers
+            try:
+                if not self.state_sheet.row_values(1):
+                    headers = [
+                        "linkedin_url", 
+                        "last_engaged_date", 
+                        "engagement_count", 
+                        "skip_count", 
+                        "consecutive_skips", 
+                        "status", 
+                        "last_post_date"
+                    ]
+                    self.state_sheet.append_row(headers)
+            except Exception:
+                # If checking row_values fails, assume empty and add headers
+                pass
+
             self.state_sheet.append_rows(new_rows)
             logger.info("state_tracker_initialized", new_profiles=len(new_rows))
     

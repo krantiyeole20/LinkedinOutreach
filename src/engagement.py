@@ -1,23 +1,19 @@
 import asyncio
 import json
-import random
-from pathlib import Path
 from datetime import datetime
 from typing import Optional
 from dataclasses import dataclass
-
-from playwright.async_api import async_playwright, Page, BrowserContext
 
 import structlog
 
 from config.settings import settings
 from src.reaction_analyzer import get_analyzer, ReactionType
 from src.scheduler import Scheduler
-from src.session_validator import SessionValidator
 
 # Import from linkedin_scraper submodule
-from linkedin_scraper.scrapers import PersonPostsScraper
+from linkedin_scraper.core.browser import BrowserManager
 from linkedin_scraper.core.exceptions import AuthenticationError, RateLimitError, ScrapingError
+from linkedin_scraper.scrapers import PersonPostsScraper
 
 logger = structlog.get_logger()
 
@@ -53,49 +49,44 @@ class LinkedInEngagement:
     def __init__(self):
         self.rate_limiter = Scheduler()
         self.analyzer = get_analyzer()
-        self.context: Optional[BrowserContext] = None
-        self.page: Optional[Page] = None
+        self.browser_manager: Optional[BrowserManager] = None
         self.scraper: Optional[PersonPostsScraper] = None
 
     async def initialize(self):
-        """Initialize browser and validate session"""
-        self.playwright = await async_playwright().start()
-        self.browser = await self.playwright.chromium.launch(
-            headless=settings.HEADLESS
-        )
-
-        self.context = await self.browser.new_context(
+        """Initialize browser and validate session via BrowserManager"""
+        logger.info("initializing_engagement_engine")
+        
+        # Initialize BrowserManager
+        self.browser_manager = BrowserManager(
+            headless=settings.HEADLESS,
             viewport={
                 "width": settings.VIEWPORT_WIDTH,
                 "height": settings.VIEWPORT_HEIGHT
-            },
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
         )
+        
+        await self.browser_manager.start()
+        
+        try:
+            logger.info("loading_session", path=str(settings.SESSION_FILE))
+            await self.browser_manager.load_session(str(settings.SESSION_FILE))
+        except FileNotFoundError:
+            logger.error("session_file_not_found", path=str(settings.SESSION_FILE))
+            raise RuntimeError(f"Session file not found at {settings.SESSION_FILE}. Please run setup.")
+        except Exception as e:
+            logger.error("session_load_failed", error=str(e))
+            raise RuntimeError(f"Failed to load session: {e}")
 
-        await self._load_cookies()
+        # Initialize PersonPostsScraper with the page from BrowserManager
+        self.scraper = PersonPostsScraper(self.browser_manager.page)
+        logger.info("engagement_engine_ready")
 
-        self.page = await self.context.new_page()
-        self.page.set_default_timeout(settings.PAGE_TIMEOUT)
-
-        # Initialize PersonPostsScraper
-        self.scraper = PersonPostsScraper(self.page)
-
-        # Validate session immediately after initialization
-        validator = SessionValidator(self.page)
-        is_valid, message = await validator.is_logged_in()
-        if not is_valid:
-            raise RuntimeError(f"LinkedIn session invalid: {message}")
-
-    async def _load_cookies(self):
-        """Load LinkedIn cookies from file"""
-        if not settings.COOKIES_FILE.exists():
-            raise FileNotFoundError(f"Cookies file not found: {settings.COOKIES_FILE}")
-
-        with open(settings.COOKIES_FILE, "r") as f:
-            cookies = json.load(f)
-
-        await self.context.add_cookies(cookies)
-        logger.info("cookies_loaded", count=len(cookies))
+    def _ensure_initialized(self):
+        """Ensure browser and scraper are initialized"""
+        if not self.browser_manager:
+            raise RuntimeError("BrowserManager not initialized. Call initialize() first.")
+        if not self.scraper:
+            raise RuntimeError("Scraper not initialized. Call initialize() first.")
 
     async def engage(self, profile_url: str, dry_run: bool = False) -> EngagementResult:
         """
@@ -103,6 +94,7 @@ class LinkedInEngagement:
         Keeps existing scheduler, analyzer, and monitoring integration.
         """
         log = logger.bind(profile_url=profile_url)
+        self._ensure_initialized()
 
         try:
             # Check rate limits (existing system)
@@ -119,6 +111,16 @@ class LinkedInEngagement:
                     error_message=f"Limit reached: {limit_info}",
                     timestamp=datetime.now()
                 )
+
+            # Random noise action
+            import random
+            from src.noise_actions import perform_noise_action
+            if random.random() < settings.NOISE_ACTION_PROBABILITY:
+                 try:
+                     logger.info("executing_noise_action")
+                     await perform_noise_action(self.browser_manager.page)
+                 except Exception as e:
+                     logger.warning("noise_action_failed", error=str(e))
 
             # Scrape most recent post using PersonPostsScraper
             try:
@@ -148,23 +150,12 @@ class LinkedInEngagement:
                     timestamp=datetime.now()
                 )
 
-            # Check if already liked
-            if post.already_liked:
-                log.info("already_reacted")
-                if hasattr(self.rate_limiter, "mark_outcome"):
-                    self.rate_limiter.mark_outcome(profile_url, "already_reacted")
-                return EngagementResult(
-                    success=False,
-                    profile_url=profile_url,
-                    action_type=None,
-                    post_id=post.urn,
-                    post_content=post.text,
-                    error_code="already_reacted",
-                    error_message="Post already liked",
-                    timestamp=datetime.now()
-                )
+
 
             # Use reaction analyzer (existing system)
+            # Note: PersonPostsScraper currently only supports "Like", but we still use the analyzer 
+            # to log what we *would* have done, or to decide if we should skip (if sentiment is bad?)
+            # For now, we proceed with Like as the implementation only supports Like.
             reaction_type, confidence = self.analyzer.analyze(post.text)
             log.info("reaction_selected", reaction=reaction_type.value, confidence=confidence)
 
@@ -183,8 +174,6 @@ class LinkedInEngagement:
                 )
 
             # Perform like using PersonPostsScraper
-            # Note: PersonPostsScraper.like_post() only does "Like", not other reactions
-            # For now, we'll just use Like (can be extended later)
             success = await self.scraper.like_post(post.urn)
 
             if not success:
@@ -203,7 +192,7 @@ class LinkedInEngagement:
             return EngagementResult(
                 success=True,
                 profile_url=profile_url,
-                action_type="Like",  # PersonPostsScraper only does Like for now
+                action_type="Like",
                 post_id=post.urn,
                 post_content=post.text,
                 error_code=None,
@@ -232,11 +221,5 @@ class LinkedInEngagement:
 
     async def close(self):
         """Cleanup resources"""
-        if self.page:
-            await self.page.close()
-        if self.context:
-            await self.context.close()
-        if self.browser:
-            await self.browser.close()
-        if self.playwright:
-            await self.playwright.stop()
+        if self.browser_manager:
+            await self.browser_manager.close()

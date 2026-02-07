@@ -14,7 +14,10 @@
       },
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-600, 300],
+      "position": [
+        -600,
+        300
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000001",
       "name": "Daily 9am EST"
     },
@@ -22,17 +25,23 @@
       "parameters": {},
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [-600, 520],
+      "position": [
+        -600,
+        520
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000002",
       "name": "Manual Trigger"
     },
     {
       "parameters": {
-        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python -c \"\nimport json, sys\ntry:\n    from src.monitoring import HealthMonitor\n    monitor = HealthMonitor()\n    can_proceed = monitor.can_proceed()\n    score = monitor.score\n    resume = str(monitor.time_until_resume())\n    result = {\n        'health_score': score,\n        'can_proceed': can_proceed,\n        'time_until_resume': resume,\n        'status': 'healthy' if can_proceed else 'paused'\n    }\n    print(json.dumps(result))\n    if not can_proceed:\n        print(f'CIRCUIT BREAKER OPEN: score={score}, resume_in={resume}', file=sys.stderr)\n        sys.exit(1)\nexcept Exception as e:\n    print(json.dumps({'error': str(e), 'status': 'error'}))\n    sys.exit(1)\n\""
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && /opt/anaconda3/bin/python3 -c \"\nimport json, sys\ntry:\n    from src.monitoring import HealthMonitor\n    monitor = HealthMonitor()\n    can_proceed = monitor.can_proceed()\n    score = monitor.score\n    resume = str(monitor.time_until_resume())\n    result = {\n        'health_score': score,\n        'can_proceed': can_proceed,\n        'time_until_resume': resume,\n        'status': 'healthy' if can_proceed else 'paused'\n    }\n    print(json.dumps(result))\n    if not can_proceed:\n        print(f'CIRCUIT BREAKER OPEN: score={score}, resume_in={resume}', file=sys.stderr)\n        sys.exit(1)\nexcept Exception as e:\n    print(json.dumps({'error': str(e), 'status': 'error'}))\n    sys.exit(1)\n\""
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [-200, 400],
+      "position": [
+        -200,
+        400
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000003",
       "name": "Health Check",
       "notes": "Circuit breaker check. Stops workflow if health score < 50.",
@@ -40,11 +49,14 @@
     },
     {
       "parameters": {
-        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python main.py --status 2>&1"
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && /opt/anaconda3/bin/python3 main.py --status 2>&1"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [100, 400],
+      "position": [
+        100,
+        400
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000004",
       "name": "Load Status"
     },
@@ -74,17 +86,23 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [380, 400],
+      "position": [
+        380,
+        400
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000005",
       "name": "Is Monday?"
     },
     {
       "parameters": {
-        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python main.py --generate-week 2>&1"
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && /opt/anaconda3/bin/python3 main.py --generate-week 2>&1"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [660, 280],
+      "position": [
+        660,
+        280
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000006",
       "name": "Generate Weekly Plan",
       "notes": "Runs ONLY on Monday. Creates 7-day stochastic schedule with Poisson timing.",
@@ -92,11 +110,14 @@
     },
     {
       "parameters": {
-        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python main.py --show-plan 2>&1"
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && /opt/anaconda3/bin/python3 main.py --show-plan 2>&1"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [940, 280],
+      "position": [
+        940,
+        280
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000007",
       "name": "Show Plan (Audit Log)"
     },
@@ -126,50 +147,65 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [660, 520],
+      "position": [
+        660,
+        520
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000008",
       "name": "Plan Exists?",
       "notes": "Tue-Sun: verify weekly plan is loaded. If missing, force regenerate."
     },
     {
       "parameters": {
-        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python main.py --generate-week 2>&1"
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && /opt/anaconda3/bin/python3 main.py --generate-week 2>&1"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [940, 620],
+      "position": [
+        940,
+        620
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000009",
       "name": "Regenerate Plan (Recovery)",
       "notes": "Fallback: regenerate plan if schedule_state.json is missing or corrupt mid-week."
     },
     {
       "parameters": {
-        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python main.py --batch 2>&1"
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && /opt/anaconda3/bin/python3 main.py --batch 2>&1"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [1300, 400],
+      "position": [
+        1300,
+        400
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000010",
       "name": "Run Batch",
       "notes": "Executes today's scheduled queue. Respects Poisson-distributed timing between profiles."
     },
     {
       "parameters": {
-        "jsCode": "// Parse batch output to extract engagement metrics\nconst stdout = $input.first().json.stdout || '';\nconst stderr = $input.first().json.stderr || '';\nconst exitCode = $input.first().json.exitCode;\nconst lines = stdout.split('\\n').filter(l => l.trim());\n\nlet done = 0, failed = 0, skipped = 0, already_reacted = 0, no_posts = 0;\nconst engagements = [];\n\nfor (const line of lines) {\n  try {\n    const parsed = JSON.parse(line);\n    if (parsed.status) {\n      switch(parsed.status) {\n        case 'done': done++; break;\n        case 'failed': failed++; break;\n        case 'skipped': skipped++; break;\n        case 'already_reacted': already_reacted++; break;\n        case 'no_posts': no_posts++; break;\n      }\n      engagements.push({\n        url: parsed.profile_url || '',\n        status: parsed.status,\n        reaction: parsed.reaction_type || '',\n        time: parsed.timestamp || ''\n      });\n    }\n  } catch(e) {\n    // Not a JSON line (log output, etc) - skip\n  }\n}\n\nconst total = done + failed + skipped + already_reacted + no_posts;\nconst successRate = total > 0 ? ((done / total) * 100).toFixed(1) : '0.0';\n\nconst now = new Date();\nconst dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];\n\nreturn [{\n  json: {\n    date: now.toISOString().split('T')[0],\n    day_of_week: dayNames[now.getDay()],\n    done,\n    failed,\n    skipped,\n    already_reacted,\n    no_posts,\n    total,\n    success_rate: `${successRate}%`,\n    exit_code: exitCode,\n    has_errors: failed > 0 || exitCode !== 0,\n    low_success_rate: parseFloat(successRate) < 70,\n    engagements,\n    stderr_excerpt: stderr.substring(0, 500)\n  }\n}];"
+        "jsCode": "// Parse batch output to extract engagement metrics\nconst stdout = $input.first().json.stdout || '';\nconst stderr = $input.first().json.stderr || '';\nconst exitCode = $input.first().json.exitCode;\nconst lines = stdout.split('\\n').filter(l => l.trim());\n\nlet done = 0, failed = 0, skipped = 0, already_reacted = 0, no_posts = 0;\nconst engagements = [];\n\nfor (const line of lines) {\n  try {\n    const parsed = JSON.parse(line);\n    if (typeof parsed.success !== 'undefined') {\n      let status = 'failed';\n      if (parsed.success) {\n          status = 'done';\n          done++;\n      } else {\n          const err = (parsed.error_message || '').toLowerCase();\n          if (err.includes('already reacted')) {\n              status = 'already_reacted';\n              already_reacted++;\n          } else if (err.includes('no recent posts') || err.includes('no posts')) {\n              status = 'no_posts';\n              no_posts++;\n          } else {\n              status = 'failed';\n              failed++;\n          }\n      }\n      engagements.push({\n        url: parsed.profile_url || '',\n        status: status,\n        reaction: parsed.action_type || '',\n        time: parsed.timestamp || ''\n      });\n    }\n  } catch(e) {\n    // Not a JSON line (log output, etc) - skip\n  }\n}\n\nconst total = done + failed + skipped + already_reacted + no_posts;\nconst successRate = total > 0 ? ((done / total) * 100).toFixed(1) : '0.0';\n\nconst now = new Date();\nconst dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];\n\nreturn [{\n  json: {\n    date: now.toISOString().split('T')[0],\n    day_of_week: dayNames[now.getDay()],\n    done,\n    failed,\n    skipped,\n    already_reacted,\n    no_posts,\n    total,\n    success_rate: `${successRate}%`,\n    exit_code: exitCode,\n    has_errors: failed > 0 || exitCode !== 0,\n    low_success_rate: parseFloat(successRate) < 70,\n    engagements,\n    stderr_excerpt: stderr.substring(0, 500)\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1580, 400],
+      "position": [
+        1580,
+        400
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000011",
       "name": "Parse Results"
     },
     {
       "parameters": {
-        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python -c \"\nimport json, sys\n\nstats_raw = sys.argv[1] if len(sys.argv) > 1 else '{}'\ntry:\n    stats = json.loads(stats_raw)\nexcept:\n    stats = {}\n\ndate = stats.get('date', 'unknown')\ndow = stats.get('day_of_week', 'unknown')\ndone = stats.get('done', 0)\nfailed = stats.get('failed', 0)\nskipped = stats.get('skipped', 0)\nar = stats.get('already_reacted', 0)\nnp = stats.get('no_posts', 0)\ntotal = stats.get('total', 0)\nrate = stats.get('success_rate', '0%')\n\nreport = f'''\\n=== DAILY REPORT: {date} ({dow}) ===\\nTotal Attempts: {total}\\n  Done:            {done}\\n  Failed:          {failed}\\n  Skipped:         {skipped}\\n  Already Reacted: {ar}\\n  No Posts:        {np}\\nSuccess Rate:      {rate}\\n===================================\\n'''\n\nprint(report)\n\n# Write summary to sheets\ntry:\n    from src.sheets_client import get_sheets_client\n    client = get_sheets_client()\n    from datetime import datetime\n    client.log_sheet.append_row([\n        datetime.now().isoformat(),\n        'DAILY_SUMMARY',\n        '',\n        f'done={done} failed={failed} ar={ar} np={np}',\n        '',\n        f'total={total} rate={rate}',\n        'summary',\n        '',\n        datetime.now().isocalendar()[1],\n        dow\n    ])\n    print('Summary logged to Sheets')\nexcept Exception as e:\n    print(f'Sheets logging failed: {e}', file=sys.stderr)\n\" '{{ JSON.stringify($json) }}'"
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && /opt/anaconda3/bin/python3 -c \"\nimport json, sys\n\nstats_raw = sys.argv[1] if len(sys.argv) > 1 else '{}'\ntry:\n    stats = json.loads(stats_raw)\nexcept:\n    stats = {}\n\ndate = stats.get('date', 'unknown')\ndow = stats.get('day_of_week', 'unknown')\ndone = stats.get('done', 0)\nfailed = stats.get('failed', 0)\nskipped = stats.get('skipped', 0)\nar = stats.get('already_reacted', 0)\nnp = stats.get('no_posts', 0)\ntotal = stats.get('total', 0)\nrate = stats.get('success_rate', '0%')\n\nreport = f'''\\n=== DAILY REPORT: {date} ({dow}) ===\\nTotal Attempts: {total}\\n  Done:            {done}\\n  Failed:          {failed}\\n  Skipped:         {skipped}\\n  Already Reacted: {ar}\\n  No Posts:        {np}\\nSuccess Rate:      {rate}\\n===================================\\n'''\n\nprint(report)\n\n# Write summary to sheets\ntry:\n    from src.sheets_client import get_sheets_client\n    client = get_sheets_client()\n    from datetime import datetime\n    client.log_sheet.append_row([\n        datetime.now().isoformat(),\n        'DAILY_SUMMARY',\n        '',\n        f'done={done} failed={failed} ar={ar} np={np}',\n        '',\n        f'total={total} rate={rate}',\n        'summary',\n        '',\n        datetime.now().isocalendar()[1],\n        dow\n    ])\n    print('Summary logged to Sheets')\nexcept Exception as e:\n    print(f'Sheets logging failed: {e}', file=sys.stderr)\n\" '{{ JSON.stringify($json) }}'"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [1860, 400],
+      "position": [
+        1860,
+        400
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000012",
       "name": "Daily Report"
     },
@@ -199,17 +235,23 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2140, 400],
+      "position": [
+        2140,
+        400
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000013",
       "name": "Is Sunday?"
     },
     {
       "parameters": {
-        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && source \".venv/bin/activate\" && python -c \"\nimport json\nfrom src.scheduler import Scheduler\n\ntry:\n    scheduler = Scheduler()\n    plan = scheduler.plan\n    status = scheduler.status()\n\n    if plan:\n        day_summaries = []\n        total_done = 0\n        total_budget = 0\n        for date_key, day_slot in sorted(plan.days.items()):\n            completed = day_slot.completed\n            budget = day_slot.budget\n            total_done += completed\n            total_budget += budget\n            day_summaries.append(f'  {date_key}: {completed}/{budget}')\n\n        days_str = chr(10).join(day_summaries)\n        rate = (total_done / max(total_budget, 1)) * 100\n\n        print(f'''\\n{'='*45}\\n  WEEKLY SUMMARY - WEEK {plan.week_number}\\n{'='*45}\\nWeek Start: {plan.week_start}\\nBudget:     {total_budget} engagements\\nCompleted:  {total_done}/{total_budget} ({rate:.1f}%)\\n\\nDaily Breakdown:\\n{days_str}\\n\\nRate Limits: {json.dumps(status, indent=2)}\\n{'='*45}\\n''')\n    else:\n        print('No weekly plan found')\n\nexcept Exception as e:\n    print(f'Weekly summary error: {e}')\n\" 2>&1"
+        "command": "cd \"/Users/krantiy/Documents/Linkedin Automation Project\" && /opt/anaconda3/bin/python3 -c \"\nimport json\nfrom src.scheduler import Scheduler\n\ntry:\n    scheduler = Scheduler()\n    plan = scheduler.plan\n    status = scheduler.status()\n\n    if plan:\n        day_summaries = []\n        total_done = 0\n        total_budget = 0\n        for date_key, day_slot in sorted(plan.days.items()):\n            completed = day_slot.completed\n            budget = day_slot.budget\n            total_done += completed\n            total_budget += budget\n            day_summaries.append(f'  {date_key}: {completed}/{budget}')\n\n        days_str = chr(10).join(day_summaries)\n        rate = (total_done / max(total_budget, 1)) * 100\n\n        print(f'''\\n{'='*45}\\n  WEEKLY SUMMARY - WEEK {plan.week_number}\\n{'='*45}\\nWeek Start: {plan.week_start}\\nBudget:     {total_budget} engagements\\nCompleted:  {total_done}/{total_budget} ({rate:.1f}%)\\n\\nDaily Breakdown:\\n{days_str}\\n\\nRate Limits: {json.dumps(status, indent=2)}\\n{'='*45}\\n''')\n    else:\n        print('No weekly plan found')\n\nexcept Exception as e:\n    print(f'Weekly summary error: {e}')\n\" 2>&1"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [2420, 280],
+      "position": [
+        2420,
+        280
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000014",
       "name": "Weekly Summary"
     },
@@ -239,7 +281,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2140, 640],
+      "position": [
+        2140,
+        640
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000015",
       "name": "Has Errors?"
     },
@@ -249,7 +294,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2420, 640],
+      "position": [
+        2420,
+        640
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000016",
       "name": "Format Error Payload"
     },
@@ -264,7 +312,10 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2700, 640],
+      "position": [
+        2700,
+        640
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000017",
       "name": "Send Slack Alert",
       "notes": "Replace SLACK_WEBHOOK_URL with your actual webhook or set as n8n env variable.",
@@ -275,7 +326,10 @@
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2420, 520],
+      "position": [
+        2420,
+        520
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000018",
       "name": "No Errors - Done"
     },
@@ -283,7 +337,10 @@
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [2700, 280],
+      "position": [
+        2700,
+        280
+      ],
       "id": "a1b2c3d4-0001-4000-8000-000000000019",
       "name": "Weekday End"
     }

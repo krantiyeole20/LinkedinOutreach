@@ -20,8 +20,14 @@ class Settings:
     COOKIES_FILE = BASE_DIR / "linkedin_cookies.json"
     RATE_LIMIT_STATE_FILE = BASE_DIR / "rate_limit_state.json"
     SCHEDULE_STATE_FILE = BASE_DIR / "schedule_state.json"
-    SESSION_FILE = BASE_DIR / "linkedin_session.json"
     LOG_FILE = BASE_DIR / "logs" / "engagement.log"
+    
+    # Session file logic - check root first, then submodule
+    SESSION_FILE = BASE_DIR / "linkedin_session.json"
+    if not SESSION_FILE.exists():
+        SUBMODULE_SESSION = BASE_DIR / "linkedin_scraper" / "linkedin_session.json"
+        if SUBMODULE_SESSION.exists():
+            SESSION_FILE = SUBMODULE_SESSION
 
     # Stochastic Scheduler
     WEEKLY_BUDGET_TARGET = 80
@@ -57,7 +63,7 @@ class Settings:
     LOG_SHEET_NAME = "LinkedIn_Engagement_Log"
     STATE_TRACKER_SHEET_NAME = "LinkedIn_State_Tracker"
     
-    HEADLESS = True
+    HEADLESS = False
     VIEWPORT_WIDTH = 1920
     VIEWPORT_HEIGHT = 1080
     PAGE_TIMEOUT = 30000
